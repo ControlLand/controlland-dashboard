@@ -143,17 +143,17 @@ const metricLabels = {
       Error al cargar datos: {{ error }}
     </div>
 
-    <div v-if="loading" class="grid grid-cols-4 gap-4">
+    <div v-if="loading" class="grid grid-cols-2 md:grid-cols-4 gap-4">
       <div v-for="i in 4" :key="i" class="bg-white rounded-xl p-5 animate-pulse h-28" />
     </div>
 
     <template v-else>
-      <div class="flex items-center justify-between">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 class="text-lg font-semibold text-slate-800">Resumen General</h2>
         <button
           @click="handleExportAll"
           :disabled="exporting"
-          class="flex items-center gap-2 text-sm bg-brand-600 text-white px-4 py-2 rounded-lg hover:bg-brand-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+          class="flex items-center justify-center gap-2 text-sm bg-brand-600 text-white px-4 py-2 rounded-lg hover:bg-brand-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
@@ -162,7 +162,7 @@ const metricLabels = {
         </button>
       </div>
 
-      <div class="grid grid-cols-4 gap-4">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KpiCard v-for="kpi in kpis" :key="kpi.label" v-bind="kpi" />
       </div>
 

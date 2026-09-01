@@ -114,8 +114,8 @@ function formatDate(d) {
 </script>
 
 <template>
-  <div class="flex gap-6 h-full">
-    <div class="w-80 shrink-0 space-y-4">
+  <div class="flex flex-col md:flex-row gap-6 md:h-full">
+    <div class="w-full md:w-80 shrink-0 space-y-4">
       <input
         v-model="search"
         type="text"
@@ -127,7 +127,7 @@ function formatDate(d) {
         <div v-if="loading" class="p-6 text-center text-slate-400 text-sm animate-pulse">
           Cargando jugadores...
         </div>
-        <div v-else class="divide-y divide-slate-100 max-h-[calc(100vh-260px)] overflow-y-auto">
+        <div v-else class="divide-y divide-slate-100 max-h-60 md:max-h-[calc(100vh-260px)] overflow-y-auto">
           <button
             v-for="player in filteredPlayers"
             :key="player.id"
@@ -150,12 +150,12 @@ function formatDate(d) {
     <div class="flex-1 space-y-4 min-w-0">
       <template v-if="selectedPlayer">
         <div class="bg-white rounded-xl border border-slate-200 p-5">
-          <div class="flex items-center justify-between mb-4">
+          <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-4">
             <div>
               <h3 class="text-lg font-semibold text-slate-800">{{ selectedPlayer.display_name || 'Sin nombre' }}</h3>
               <p class="text-sm text-slate-500">ID: {{ selectedPlayer.id?.slice(0, 12) }}...</p>
             </div>
-            <div class="flex items-center gap-6">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
               <div class="flex gap-4 text-sm">
                 <div class="text-center">
                   <div class="text-2xl font-bold text-slate-800">{{ selectedPlayer.session_count }}</div>
@@ -173,7 +173,7 @@ function formatDate(d) {
               <button
                 @click="handleExportPlayer"
                 :disabled="exporting || playerLoading"
-                class="flex items-center gap-2 text-sm bg-brand-600 text-white px-3 py-2 rounded-lg hover:bg-brand-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                class="flex items-center justify-center gap-2 text-sm bg-brand-600 text-white px-3 py-2 rounded-lg hover:bg-brand-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
@@ -196,7 +196,8 @@ function formatDate(d) {
           <div class="px-5 py-4 border-b border-slate-100">
             <h3 class="text-sm font-semibold text-slate-700">Historial de sesiones</h3>
           </div>
-          <table class="w-full text-sm">
+          <div class="overflow-x-auto">
+          <table class="w-full text-sm min-w-[640px]">
             <thead>
               <tr class="bg-slate-50 text-left text-slate-500 text-xs uppercase tracking-wider">
                 <th class="px-4 py-3">Fecha</th>
@@ -227,6 +228,7 @@ function formatDate(d) {
               </tr>
             </tbody>
           </table>
+          </div>
         </div>
       </template>
 

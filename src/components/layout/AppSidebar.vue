@@ -1,8 +1,12 @@
 <script setup>
-import { computed } from 'vue'
+import { watch } from 'vue'
 import { useRoute } from 'vue-router'
 
+const props = defineProps({ open: Boolean })
+const emit = defineEmits(['close'])
 const route = useRoute()
+
+watch(() => route.path, () => emit('close'))
 
 const navItems = [
   { name: 'overview', path: '/', label: 'Resumen', icon: 'chart-bar' },
@@ -17,10 +21,22 @@ function isActive(item) {
 </script>
 
 <template>
-  <aside class="w-64 bg-sidebar flex flex-col shrink-0">
-    <div class="px-6 py-5 border-b border-white/10">
-      <h1 class="text-white text-lg font-bold tracking-tight">ControlLand</h1>
-      <p class="text-slate-400 text-xs mt-0.5">Panel de Investigación</p>
+  <div v-if="open" class="fixed inset-0 z-30 bg-black/50 md:hidden" @click="emit('close')" />
+
+  <aside
+    class="fixed inset-y-0 left-0 z-40 w-64 bg-sidebar flex flex-col transform transition-transform duration-200 md:static md:translate-x-0 md:z-auto"
+    :class="open ? 'translate-x-0' : '-translate-x-full'"
+  >
+    <div class="px-6 py-5 border-b border-white/10 flex items-center justify-between">
+      <div>
+        <h1 class="text-white text-lg font-bold tracking-tight">ControlLand</h1>
+        <p class="text-slate-400 text-xs mt-0.5">Panel de Investigación</p>
+      </div>
+      <button class="md:hidden text-slate-400 hover:text-white" @click="emit('close')" aria-label="Cerrar menú">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+        </svg>
+      </button>
     </div>
 
     <nav class="flex-1 px-3 py-4 space-y-1">

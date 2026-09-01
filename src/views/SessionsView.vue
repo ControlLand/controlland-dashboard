@@ -67,16 +67,16 @@ function handleExport() {
 
 <template>
   <div class="space-y-4">
-    <div class="flex items-center justify-between">
-      <div class="flex items-center gap-3">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
         <input
           v-model="search"
           type="text"
           placeholder="Buscar por jugador o minijuego..."
-          class="text-sm border border-slate-200 rounded-lg px-3 py-2 w-72 focus:outline-none focus:ring-2 focus:ring-brand-500"
+          class="text-sm border border-slate-200 rounded-lg px-3 py-2 w-full sm:w-72 focus:outline-none focus:ring-2 focus:ring-brand-500"
           @input="page = 1"
         />
-        <span class="text-sm text-slate-500">{{ totalCount.toLocaleString('es-MX') }} sesiones</span>
+        <span class="text-sm text-slate-500 whitespace-nowrap">{{ totalCount.toLocaleString('es-MX') }} sesiones</span>
       </div>
       <button
         @click="handleExport"
@@ -94,7 +94,8 @@ function handleExport() {
       <div v-if="loading" class="p-12 text-center text-slate-400">
         <div class="animate-pulse text-sm">Cargando sesiones...</div>
       </div>
-      <table v-else class="w-full text-sm">
+      <div v-else class="overflow-x-auto">
+      <table class="w-full text-sm min-w-[900px]">
         <thead>
           <tr class="bg-slate-50 text-left text-slate-500 text-xs uppercase tracking-wider">
             <th class="px-4 py-3 cursor-pointer hover:text-slate-700" @click="toggleSort('started_at')">
@@ -146,8 +147,9 @@ function handleExport() {
           </tr>
         </tbody>
       </table>
+      </div>
 
-      <div v-if="totalPages > 1" class="flex items-center justify-between px-4 py-3 border-t border-slate-100">
+      <div v-if="totalPages > 1" class="flex flex-col gap-2 sm:flex-row items-center justify-between px-4 py-3 border-t border-slate-100">
         <button
           @click="page = Math.max(1, page - 1)"
           :disabled="page <= 1"
