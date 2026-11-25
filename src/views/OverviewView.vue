@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch, shallowRef } from 'vue'
 import { useFiltersStore } from '../stores/filters'
 import { fetchOverview, fetchSessions } from '../lib/api'
 import { exportAllSessions } from '../lib/export'
+import { minigameDef, formatMetric } from '../lib/minigameMetrics'
 import KpiCard from '../components/KpiCard.vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
@@ -126,6 +127,20 @@ const perfOption = computed(() => {
   }
 })
 
+const minigameMetricGroups = computed(() => (data.value?.minigame_metrics || []).map(g => {
+  const def = minigameDef(g.minigame_key)
+  if (!def) return null
+  return {
+    key: g.minigame_key,
+    title: `${def.code} · ${def.name}`,
+    sessionCount: g.session_count,
+    items: g.metrics.map(m => {
+      const metric = def.metrics.find(x => x.key === m.key)
+      return metric ? { key: m.key, label: metric.label, text: formatMetric(metric, m.avg) } : null
+    }).filter(Boolean),
+  }
+}).filter(Boolean))
+
 const metricLabels = {
   avg_score: 'Puntuación prom.',
   avg_errors: 'Errores prom.',
@@ -210,6 +225,27 @@ const metricLabels = {
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div v-if="minigameMetricGroups.length" class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-100">
+          <h3 class="text-sm font-semibold text-slate-700">Indicadores por minijuego</h3>
+          <p class="text-xs text-slate-500 mt-0.5">Promedio por sesión. Solo cuenta sesiones jugadas con la versión de la app que registra estos datos.</p>
+        </div>
+        <div class="divide-y divide-slate-100">
+          <section v-for="g in minigameMetricGroups" :key="g.key" class="px-5 py-4">
+            <div class="flex items-baseline justify-between gap-3 mb-3">
+              <h4 class="text-sm font-medium text-slate-800">{{ g.title }}</h4>
+              <span class="text-xs text-slate-500 whitespace-nowrap">{{ g.sessionCount }} {{ g.sessionCount === 1 ? 'sesión' : 'sesiones' }}</span>
+            </div>
+            <dl class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+              <div v-for="m in g.items" :key="m.key" class="rounded-lg bg-slate-50 px-3 py-2 min-w-0">
+                <dt class="text-xs text-slate-500 leading-tight">{{ m.label }}</dt>
+                <dd class="text-base font-semibold text-slate-800 tabular-nums mt-0.5">{{ m.text }}</dd>
+              </div>
+            </dl>
+          </section>
+        </div>
       </div>
     </template>
   </div>

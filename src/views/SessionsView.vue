@@ -2,6 +2,9 @@
 import { ref, onMounted, watch, computed } from 'vue'
 import { useFiltersStore } from '../stores/filters'
 import { fetchSessions, exportCSV } from '../lib/api'
+import { minigameDef } from '../lib/minigameMetrics'
+import SessionDetail from '../components/SessionDetail.vue'
+import { useVisibleWidth } from '../composables/useVisibleWidth'
 
 const filters = useFiltersStore()
 const sessions = ref([])
@@ -13,12 +16,19 @@ const totalCount = ref(0)
 const sortCol = ref('started_at')
 const sortDir = ref('desc')
 const search = ref('')
+const expandedId = ref(null)
+const { width: visibleWidth, bind: bindScrollBox } = useVisibleWidth()
+
+function toggleExpanded(id) {
+  expandedId.value = expandedId.value === id ? null : id
+}
 
 const totalPages = computed(() => Math.ceil(totalCount.value / pageSize))
 
 async function loadData() {
   loading.value = true
   error.value = null
+  expandedId.value = null
   try {
     const params = {
       ...filters.queryParams,
@@ -94,10 +104,11 @@ function handleExport() {
       <div v-if="loading" class="p-12 text-center text-slate-400">
         <div class="animate-pulse text-sm">Cargando sesiones...</div>
       </div>
-      <div v-else class="overflow-x-auto">
+      <div v-else :ref="bindScrollBox" class="overflow-x-auto">
       <table class="w-full text-sm min-w-[900px]">
         <thead>
           <tr class="bg-slate-50 text-left text-slate-500 text-xs uppercase tracking-wider">
+            <th class="pl-3 pr-0 py-3 w-8"><span class="sr-only">Detalle</span></th>
             <th class="px-4 py-3 cursor-pointer hover:text-slate-700" @click="toggleSort('started_at')">
               Fecha {{ sortIcon('started_at') }}
             </th>
@@ -118,10 +129,31 @@ function handleExport() {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="s in sessions" :key="s.id" class="border-t border-slate-100 hover:bg-slate-50 transition-colors">
+          <template v-for="s in sessions" :key="s.id">
+          <tr
+            class="border-t border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer"
+            :class="{ 'bg-slate-50': expandedId === s.id }"
+            @click="toggleExpanded(s.id)"
+          >
+            <td class="pl-3 pr-0 py-3">
+              <button
+                type="button"
+                class="w-6 h-6 inline-flex items-center justify-center rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                :aria-expanded="expandedId === s.id"
+                :aria-label="expandedId === s.id ? 'Ocultar detalle' : 'Ver detalle'"
+                @click.stop="toggleExpanded(s.id)"
+              >
+                <svg class="w-4 h-4 transition-transform" :class="{ 'rotate-90': expandedId === s.id }" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="m9 5 7 7-7 7" />
+                </svg>
+              </button>
+            </td>
             <td class="px-4 py-3 text-slate-600 whitespace-nowrap">{{ formatDate(s.started_at) }}</td>
             <td class="px-4 py-3 font-medium text-slate-800">{{ s.player_name || s.player_id?.slice(0, 8) }}</td>
-            <td class="px-4 py-3 text-slate-700">{{ s.minigame_key }}</td>
+            <td class="px-4 py-3 text-slate-700 whitespace-nowrap">
+              {{ s.minigame_key }}
+              <span v-if="minigameDef(s.minigame_key)" class="text-xs text-slate-400">· {{ minigameDef(s.minigame_key).code }}</span>
+            </td>
             <td class="px-4 py-3">
               <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
                 {{ s.control_type || '—' }}
@@ -142,8 +174,16 @@ function handleExport() {
               </span>
             </td>
           </tr>
+          <tr v-if="expandedId === s.id" class="bg-slate-50">
+            <td colspan="12" class="p-0">
+              <div class="sticky left-0 px-4 sm:px-6 pb-5 pt-1" :style="visibleWidth ? { width: `${visibleWidth}px` } : null">
+                <SessionDetail :session="s" />
+              </div>
+            </td>
+          </tr>
+          </template>
           <tr v-if="sessions.length === 0">
-            <td colspan="11" class="px-4 py-12 text-center text-slate-400">No se encontraron sesiones</td>
+            <td colspan="12" class="px-4 py-12 text-center text-slate-400">No se encontraron sesiones</td>
           </tr>
         </tbody>
       </table>

@@ -3,13 +3,16 @@ import { ref, onMounted, watch, computed } from 'vue'
 import { useFiltersStore } from '../stores/filters'
 import { fetchPlayers, fetchPlayerSessions } from '../lib/api'
 import { exportPlayerData } from '../lib/export'
+import SessionComparison from '../components/SessionComparison.vue'
+import SessionDetail from '../components/SessionDetail.vue'
+import { useVisibleWidth } from '../composables/useVisibleWidth'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart } from 'echarts/charts'
-import { TitleComponent, TooltipComponent, LegendComponent, GridComponent } from 'echarts/components'
+import { TitleComponent, TooltipComponent, LegendComponent, GridComponent, MarkLineComponent } from 'echarts/components'
 
-use([CanvasRenderer, LineChart, TitleComponent, TooltipComponent, LegendComponent, GridComponent])
+use([CanvasRenderer, LineChart, TitleComponent, TooltipComponent, LegendComponent, GridComponent, MarkLineComponent])
 
 const filters = useFiltersStore()
 const players = ref([])
@@ -19,6 +22,13 @@ const playerSessions = ref([])
 const playerLoading = ref(false)
 const search = ref('')
 const exporting = ref(false)
+const compareIds = ref([])
+const expandedId = ref(null)
+const { width: visibleWidth, bind: bindScrollBox } = useVisibleWidth()
+
+function toggleExpanded(id) {
+  expandedId.value = expandedId.value === id ? null : id
+}
 
 function handleExportPlayer() {
   if (!selectedPlayer.value) return
@@ -59,18 +69,79 @@ const filteredPlayers = computed(() => {
 async function selectPlayer(player) {
   selectedPlayer.value = player
   playerLoading.value = true
+  compareIds.value = []
+  expandedId.value = null
+  let sessions
   try {
-    playerSessions.value = await fetchPlayerSessions(player.id, filters.queryParams)
+    sessions = await fetchPlayerSessions(player.id, filters.queryParams)
   } catch {
-    playerSessions.value = []
-  } finally {
-    playerLoading.value = false
+    sessions = []
+  }
+  if (selectedPlayer.value?.id !== player.id) return
+  playerSessions.value = sessions
+  compareIds.value = defaultComparison()
+  playerLoading.value = false
+}
+
+// Chronological order; the position is the "Sesión N" number used in the chart, table and comparison.
+const orderedSessions = computed(() =>
+  [...playerSessions.value].sort((a, b) => new Date(a.started_at) - new Date(b.started_at))
+)
+
+// For each session, the previous session the player had in the same minigame.
+const previousSameGame = computed(() => {
+  const last = {}
+  const prev = {}
+  orderedSessions.value.forEach((s, i) => {
+    prev[s.id] = last[s.minigame_key] || null
+    last[s.minigame_key] = { session: s, number: i + 1 }
+  })
+  return prev
+})
+
+// Latest session vs. the previous attempt at the same minigame (or simply the previous session).
+function defaultComparison() {
+  const list = orderedSessions.value
+  if (!list.length) return []
+  const latest = list[list.length - 1]
+  const previous = previousSameGame.value[latest.id]?.session || list[list.length - 2]
+  return previous ? [previous.id, latest.id] : [latest.id]
+}
+
+function toggleCompare(id) {
+  const ids = compareIds.value
+  compareIds.value = ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id].slice(-2)
+}
+
+const comparePair = computed(() => {
+  const picked = orderedSessions.value
+    .map((session, i) => ({ session, number: i + 1 }))
+    .filter(x => compareIds.value.includes(x.session.id))
+  return picked.length === 2 ? picked : null
+})
+
+const compareRoles = computed(() => {
+  if (!comparePair.value) return {}
+  const [a, b] = comparePair.value
+  return { [a.session.id]: 'A', [b.session.id]: 'B' }
+})
+
+const signed = new Intl.NumberFormat('es-MX', { maximumFractionDigits: 1, signDisplay: 'exceptZero' })
+
+function scoreDelta(s) {
+  const prev = previousSameGame.value[s.id]
+  if (!prev || s.score == null || prev.session.score == null) return null
+  const d = s.score - prev.session.score
+  return {
+    text: signed.format(d),
+    tone: d > 0 ? 'text-emerald-600' : d < 0 ? 'text-red-500' : 'text-slate-400',
+    title: `Respecto a la sesión ${prev.number} (${s.minigame_key})`,
   }
 }
 
 const learningCurveOption = computed(() => {
   if (!playerSessions.value.length) return {}
-  const sorted = [...playerSessions.value].sort((a, b) => new Date(a.started_at) - new Date(b.started_at))
+  const sorted = orderedSessions.value
   return {
     tooltip: { trigger: 'axis' },
     legend: { data: ['Puntaje', 'Aciertos', 'Errores'], top: 0, textStyle: { fontSize: 11 } },
@@ -88,6 +159,13 @@ const learningCurveOption = computed(() => {
         data: sorted.map(s => s.score ?? 0),
         smooth: true,
         itemStyle: { color: '#14c35e' },
+        markLine: {
+          symbol: 'none',
+          silent: true,
+          lineStyle: { color: '#94a3b8', type: 'dashed' },
+          label: { formatter: '{b}', color: '#475569', fontWeight: 'bold' },
+          data: (comparePair.value || []).map((p, i) => ({ name: i === 0 ? 'A' : 'B', xAxis: `Sesión ${p.number}` })),
+        },
       },
       {
         name: 'Aciertos',
@@ -186,20 +264,40 @@ function formatDate(d) {
           <div v-if="playerLoading" class="h-64 flex items-center justify-center text-slate-400 text-sm animate-pulse">
             Cargando curva de aprendizaje...
           </div>
-          <v-chart v-else-if="playerSessions.length" :option="learningCurveOption" autoresize class="h-64" />
+          <div v-else-if="playerSessions.length" class="h-64">
+            <v-chart :option="learningCurveOption" autoresize style="width: 100%; height: 100%;" />
+          </div>
           <div v-else class="h-64 flex items-center justify-center text-slate-400 text-sm">
             Sin datos de sesión para este jugador
           </div>
         </div>
 
+        <SessionComparison
+          v-if="comparePair"
+          :a="comparePair[0].session"
+          :b="comparePair[1].session"
+          :number-a="comparePair[0].number"
+          :number-b="comparePair[1].number"
+        />
+        <div
+          v-else-if="!playerLoading && orderedSessions.length >= 2"
+          class="bg-white rounded-xl border border-dashed border-slate-300 p-5 text-center text-sm text-slate-500"
+        >
+          Selecciona dos sesiones del historial para comparar sus diferencias.
+        </div>
+
         <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
           <div class="px-5 py-4 border-b border-slate-100">
             <h3 class="text-sm font-semibold text-slate-700">Historial de sesiones</h3>
+            <p v-if="orderedSessions.length >= 2" class="text-xs text-slate-500 mt-0.5">
+              Marca dos sesiones para compararlas. Junto al puntaje se muestra el cambio respecto a la sesión anterior del mismo minijuego.
+            </p>
           </div>
-          <div class="overflow-x-auto">
-          <table class="w-full text-sm min-w-[640px]">
+          <div :ref="bindScrollBox" class="overflow-x-auto">
+          <table class="w-full text-sm min-w-[720px]">
             <thead>
               <tr class="bg-slate-50 text-left text-slate-500 text-xs uppercase tracking-wider">
+                <th class="px-4 py-3">#</th>
                 <th class="px-4 py-3">Fecha</th>
                 <th class="px-4 py-3">Minijuego</th>
                 <th class="px-4 py-3">Control</th>
@@ -207,14 +305,48 @@ function formatDate(d) {
                 <th class="px-4 py-3">Nivel</th>
                 <th class="px-4 py-3">Duración</th>
                 <th class="px-4 py-3">Estado</th>
+                <th class="px-4 py-3 text-right">Detalle</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="s in playerSessions" :key="s.id" class="border-t border-slate-100">
-                <td class="px-4 py-3 text-slate-600">{{ formatDate(s.started_at) }}</td>
+              <template v-for="(s, i) in orderedSessions" :key="s.id">
+              <tr
+                @click="toggleCompare(s.id)"
+                class="border-t border-slate-100 cursor-pointer transition-colors"
+                :class="compareIds.includes(s.id) ? 'bg-brand-50/70' : 'hover:bg-slate-50'"
+              >
+                <td class="px-4 py-3">
+                  <label class="flex items-center gap-2 cursor-pointer" @click.stop>
+                    <input
+                      type="checkbox"
+                      :checked="compareIds.includes(s.id)"
+                      @change="toggleCompare(s.id)"
+                      :aria-label="`Comparar sesión ${i + 1}`"
+                      class="w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                    />
+                    <span class="text-slate-500 tabular-nums">{{ i + 1 }}</span>
+                    <span
+                      v-if="compareRoles[s.id]"
+                      class="inline-flex items-center justify-center w-5 h-5 rounded bg-brand-600 text-white text-xs font-bold"
+                    >
+                      {{ compareRoles[s.id] }}
+                    </span>
+                  </label>
+                </td>
+                <td class="px-4 py-3 text-slate-600 whitespace-nowrap">{{ formatDate(s.started_at) }}</td>
                 <td class="px-4 py-3 text-slate-700">{{ s.minigame_key }}</td>
                 <td class="px-4 py-3 text-slate-600">{{ s.control_type || '—' }}</td>
-                <td class="px-4 py-3 font-semibold">{{ s.score?.toLocaleString('es-MX') ?? '—' }}</td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <span class="font-semibold">{{ s.score?.toLocaleString('es-MX') ?? '—' }}</span>
+                  <span
+                    v-if="scoreDelta(s)"
+                    class="ml-1.5 text-xs font-medium tabular-nums"
+                    :class="scoreDelta(s).tone"
+                    :title="scoreDelta(s).title"
+                  >
+                    {{ scoreDelta(s).text }}
+                  </span>
+                </td>
                 <td class="px-4 py-3 text-slate-600">{{ s.level_reached ?? '—' }}</td>
                 <td class="px-4 py-3 text-slate-600">{{ s.duration_seconds ? `${Math.round(s.duration_seconds)}s` : '—' }}</td>
                 <td class="px-4 py-3">
@@ -225,7 +357,25 @@ function formatDate(d) {
                     {{ s.completed ? 'Completada' : 'Incompleta' }}
                   </span>
                 </td>
+                <td class="px-4 py-3 text-right">
+                  <button
+                    type="button"
+                    class="text-xs font-medium px-2 py-1 rounded-md border border-slate-200 text-slate-600 hover:bg-white hover:text-slate-800"
+                    :aria-expanded="expandedId === s.id"
+                    @click.stop="toggleExpanded(s.id)"
+                  >
+                    {{ expandedId === s.id ? 'Ocultar' : 'Ver' }}
+                  </button>
+                </td>
               </tr>
+              <tr v-if="expandedId === s.id" class="bg-slate-50">
+                <td colspan="9" class="p-0">
+                  <div class="sticky left-0 px-4 sm:px-6 pb-5 pt-2" :style="visibleWidth ? { width: `${visibleWidth}px` } : null">
+                    <SessionDetail :session="s" />
+                  </div>
+                </td>
+              </tr>
+              </template>
             </tbody>
           </table>
           </div>

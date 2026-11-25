@@ -30,8 +30,8 @@ export function fetchPlayerSessions(playerId, params) {
   return request('/player-sessions', { ...params, player_id: playerId })
 }
 
-export function fetchSessionEvents(sessionId) {
-  return request('/session-events', { session_id: sessionId })
+export function fetchSessionEvents(sessionId, types) {
+  return request('/session-events', { session_id: sessionId, types: types?.length ? types.join(',') : null })
 }
 
 export function fetchFilters() {

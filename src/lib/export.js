@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx'
+import { metricColumns, metricCells } from './minigameMetrics'
 
 function formatDate(d) {
   if (!d) return ''
@@ -6,6 +7,7 @@ function formatDate(d) {
 }
 
 export function exportAllSessions(sessions, filename = 'controlland_sesiones.xlsx') {
+  const columns = metricColumns(sessions)
   const rows = sessions.map(s => ({
     'Jugador': s.player_name || s.player_id,
     'Minijuego': s.minigame_key,
@@ -22,6 +24,7 @@ export function exportAllSessions(sessions, filename = 'controlland_sesiones.xls
     'Fecha de fin': formatDate(s.ended_at),
     'Dispositivo': s.device_model || '',
     'Versión': s.app_version || '',
+    ...metricCells(s, columns),
   }))
 
   const ws = XLSX.utils.json_to_sheet(rows)
@@ -29,6 +32,7 @@ export function exportAllSessions(sessions, filename = 'controlland_sesiones.xls
     { wch: 18 }, { wch: 12 }, { wch: 15 }, { wch: 10 }, { wch: 10 },
     { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 12 },
     { wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 30 }, { wch: 10 },
+    ...columns.map(c => ({ wch: Math.min(Math.max(c.header.length, 12), 40) })),
   ]
 
   const wb = XLSX.utils.book_new()
@@ -53,6 +57,7 @@ export function exportPlayerData(player, sessions, filename) {
   wsSummary['!cols'] = [{ wch: 18 }, { wch: 36 }, { wch: 15 }, { wch: 16 }, { wch: 13 }, { wch: 18 }, { wch: 18 }, { wch: 18 }]
   XLSX.utils.book_append_sheet(wb, wsSummary, 'Resumen')
 
+  const columns = metricColumns(sessions)
   const sessionRows = sessions.map((s, i) => ({
     '#': i + 1,
     'Minijuego': s.minigame_key,
@@ -66,12 +71,14 @@ export function exportPlayerData(player, sessions, filename) {
     'Duración (s)': s.duration_seconds ? Math.round(s.duration_seconds * 100) / 100 : '',
     'Completada': s.completed ? 'Sí' : 'No',
     'Fecha': formatDate(s.started_at),
+    ...metricCells(s, columns),
   }))
   const wsSessions = XLSX.utils.json_to_sheet(sessionRows)
   wsSessions['!cols'] = [
     { wch: 5 }, { wch: 12 }, { wch: 15 }, { wch: 10 }, { wch: 10 },
     { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 12 },
     { wch: 12 }, { wch: 18 },
+    ...columns.map(c => ({ wch: Math.min(Math.max(c.header.length, 12), 40) })),
   ]
   XLSX.utils.book_append_sheet(wb, wsSessions, 'Sesiones')
 

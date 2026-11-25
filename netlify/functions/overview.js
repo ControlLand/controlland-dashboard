@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { MINIGAME_METRICS } from '../../src/lib/minigameMetrics.js'
 
 function getSupabase() {
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
@@ -72,11 +73,24 @@ export async function handler(event) {
       completion_rate: m.completed / m.session_count,
     }))
 
+    const minigameMetrics = Object.entries(MINIGAME_METRICS).map(([key, def]) => {
+      const withMetrics = sessions.filter(s => s.minigame_key === key && s.metrics)
+      return {
+        minigame_key: key,
+        session_count: withMetrics.length,
+        metrics: def.metrics.map(m => {
+          const values = withMetrics.map(m.value).filter(v => v != null)
+          return { key: m.key, avg: values.length ? values.reduce((a, v) => a + v, 0) / values.length : null }
+        }),
+      }
+    }).filter(g => g.session_count > 0)
+
     const result = {
       summary: { total_players: totalPlayers, total_sessions: totalSessions, completion_rate: completionRate, avg_score: avgScore },
       timeline,
       performance: { control_types: controlTypes, metrics },
       minigame_summary: minigameSummary,
+      minigame_metrics: minigameMetrics,
     }
 
     return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(result) }

@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { metricColumns, metricCells } from '../../src/lib/minigameMetrics.js'
 
 function getSupabase() {
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
@@ -41,21 +42,24 @@ export async function handler(event) {
     if (error) return { statusCode: 500, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: error.message }) }
 
     if (params.format === 'csv') {
+      const columns = metricColumns(data)
       const rows = data.map(s => ({
         id: s.id, player: s.profiles?.display_name || s.player_id, minigame: s.minigame_key,
         control_type: s.control_type, score: s.score, successes: s.successes, errors: s.errors,
         gems: s.gems, max_streak: s.max_streak, level_reached: s.level_reached,
         duration_seconds: s.duration_seconds, completed: s.completed, started_at: s.started_at,
+        ...metricCells(s, columns),
       }))
       const headers = rows.length ? Object.keys(rows[0]) : []
       const csvLines = [headers.join(','), ...rows.map(r => headers.map(h => {
         const v = r[h]
-        return typeof v === 'string' && v.includes(',') ? `"${v}"` : v ?? ''
+        return typeof v === 'string' && /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v ?? ''
       }).join(','))]
+      csvLines[0] = headers.map(h => (/[",\n]/.test(h) ? `"${h.replace(/"/g, '""')}"` : h)).join(',')
       return {
         statusCode: 200,
         headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="sesiones.csv"' },
-        body: csvLines.join('\n'),
+        body: '\uFEFF' + csvLines.join('\n'),
       }
     }
 
